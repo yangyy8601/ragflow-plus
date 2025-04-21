@@ -72,12 +72,12 @@ services:
       - "host.docker.internal:host-gateway"
     networks:
       - ragflow
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
 
   # vllm 嵌入模型
   # vllm-bge:
