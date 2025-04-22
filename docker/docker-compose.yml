@@ -37,7 +37,7 @@ services:
       dockerfile: Dockerfile
       target: frontend
     ports:
-      - "8888:80"
+      - "9888:80"
     depends_on:
       - management-backend
     environment:
