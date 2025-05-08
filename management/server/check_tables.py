@@ -1,22 +1,10 @@
 import os
 import mysql.connector
 from dotenv import load_dotenv
+from database import DB_CONFIG, get_db_connection
 
 # 加载环境变量
 load_dotenv("../../docker/.env")
-
-# 数据库连接配置
-DB_CONFIG = {
-    "host": "localhost",
-    "port": int(os.getenv("MYSQL_PORT", "5455")),
-    "user": "root",
-    "password": os.getenv("MYSQL_PASSWORD", "infini_rag_flow"),
-    "database": "rag_flow"
-}
-
-def get_db_connection():
-    """创建数据库连接"""
-    return mysql.connector.connect(**DB_CONFIG)
 
 def get_all_tables():
     """获取数据库中所有表的名称"""

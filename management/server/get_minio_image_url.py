@@ -3,6 +3,7 @@ import sys
 import argparse
 from minio import Minio
 from dotenv import load_dotenv
+from database import MINIO_CONFIG, get_minio_client
 
 # 加载环境变量
 load_dotenv("../../docker/.env")

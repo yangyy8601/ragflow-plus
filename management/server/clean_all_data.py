@@ -2,40 +2,15 @@ import os
 from dotenv import load_dotenv
 import mysql.connector
 from minio import Minio
+from database import DB_CONFIG, MINIO_CONFIG, get_db_connection, get_minio_client
 
 # 加载环境变量
 load_dotenv("../../docker/.env")
 
-# 数据库连接配置
-DB_CONFIG = {
-    "host": "localhost",
-    "port": int(os.getenv("MYSQL_PORT", "5455")),
-    "user": "root",
-    "password": os.getenv("MYSQL_PASSWORD", "infini_rag_flow"),
-    "database": "rag_flow"
-}
-
-# MinIO连接配置
-MINIO_CONFIG = {
-    "endpoint": "localhost:" + os.getenv("MINIO_PORT", "9000"),
-    "access_key": os.getenv("MINIO_USER", "rag_flow"),
-    "secret_key": os.getenv("MINIO_PASSWORD", "infini_rag_flow"),
-    "secure": False
-}
-
-def get_minio_client():
-    """创建MinIO客户端"""
-    return Minio(
-        endpoint=MINIO_CONFIG["endpoint"],
-        access_key=MINIO_CONFIG["access_key"],
-        secret_key=MINIO_CONFIG["secret_key"],
-        secure=MINIO_CONFIG["secure"]
-    )
-
 def clear_database_tables():
     """清空数据库表"""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # 禁用外键检查

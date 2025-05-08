@@ -2,6 +2,7 @@
 import type { SequentialBatchTaskProgress } from "@@/apis/kbs/document"
 import type { FormInstance } from "element-plus"
 import DocumentParseProgress from "@/layouts/components/DocumentParseProgress/index.vue"
+import { request } from "@/http/axios"
 import {
   deleteDocumentApi,
   getDocumentListApi,
@@ -11,15 +12,18 @@ import {
   startSequentialBatchParseAsyncApi
 } from "@@/apis/kbs/document"
 import {
+  addUsersToKnowledgeBaseApi,
   batchDeleteKnowledgeBaseApi,
   createKnowledgeBaseApi,
   deleteKnowledgeBaseApi,
+  deleteUsersFromKnowledgeBaseApi,
   getKnowledgeBaseListApi,
   getSystemEmbeddingConfigApi,
+  getUsersFromKnowledgeBaseApi,
   setSystemEmbeddingConfigApi
 } from "@@/apis/kbs/knowledgebase"
 import { usePagination } from "@@/composables/usePagination"
-import { CaretRight, Delete, Loading, Plus, Refresh, Search, Setting, View } from "@element-plus/icons-vue"
+import { CaretRight, Delete, Loading, Plus, Refresh, Search, Setting, UserFilled, View } from "@element-plus/icons-vue"
 import axios from "axios"
 import { ElMessage, ElMessageBox } from "element-plus"
 import { nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, reactive, ref, watch } from "vue"
@@ -56,6 +60,8 @@ function cleanupResources() {
   createDialogVisible.value = false
   addDocumentDialogVisible.value = false
   showParseProgress.value = false
+  usersDialogVisible.value = false
+  addUserDialogVisible.value = false
 }
 
 // 在组件停用时清理资源
@@ -88,7 +94,7 @@ const knowledgeBaseForm = reactive({
   name: "",
   description: "",
   language: "Chinese",
-  permission: "me"
+  permission: "team"
 })
 
 // 定义API返回数据的接口
@@ -334,7 +340,7 @@ function handleBatchParse() {
       dangerouslyUseHTMLString: true // 允许使用 HTML 标签
     }
   ).then(async () => {
-    batchParsingLoading.value = true // 标记“正在启动”状态
+    batchParsingLoading.value = true // 标记"正在启动"状态
     batchProgress.value = null
     try {
       const res = await startSequentialBatchParseAsyncApi(kbId)
@@ -344,19 +350,19 @@ function handleBatchParse() {
         ElMessage.success(res.data.message || `已成功启动批量解析任务`)
         // --- 关键：启动轮询来监控进度 ---
         startBatchPolling()
-        // 可以在启动后稍微延迟一下再刷新列表，尝试显示“解析中”的状态
+        // 可以在启动后稍微延迟一下再刷新列表，尝试显示"解析中"的状态
         setTimeout(getDocumentList, 1500)
       } else {
         // 启动 API 本身调用失败，或后端返回了错误
         const errorMsg = res.data?.message || res.message || "启动批量解析任务失败"
         ElMessage.error(errorMsg)
-        batchParsingLoading.value = false // 启动失败，取消“正在启动”状态
+        batchParsingLoading.value = false // 启动失败，取消"正在启动"状态
       }
     } catch (error: any) {
       // 请求启动 API 时发生网络错误或其他异常
       ElMessage.error(`启动批量解析任务时出错: ${error?.message || "网络错误"}`)
       console.error("启动批量解析任务失败:", error)
-      batchParsingLoading.value = false // 启动异常，取消“正在启动”状态
+      batchParsingLoading.value = false // 启动异常，取消"正在启动"状态
     } finally {
       // 只有在 *没有* 成功启动轮询的情况下，才将 batchParsingLoading 设置为 false
       // 如果轮询已开始，则由 isBatchPolling 状态控制按钮和界面的显示
@@ -365,7 +371,7 @@ function handleBatchParse() {
       }
     }
   }).catch(() => {
-    // 用户点击了“取消”按钮
+    // 用户点击了"取消"按钮
     ElMessage.info("已取消批量解析操作")
   })
 }
@@ -901,6 +907,171 @@ function isLoadingStatus(status: string) {
 function shouldShowProgressCount(status: string) {
   return !["starting", "not_found"].includes(status)
 }
+
+// 在合适的位置添加这些状态变量
+const usersDialogVisible = ref(false)
+const addUserDialogVisible = ref(false)
+const currentUsersKbId = ref("")
+const usersList = ref<any[]>([])
+const usersLoading = ref(false)
+const addUserLoading = ref(false)
+const removeUserLoading = ref(false)
+const userOptions = ref<any[]>([])
+const selectedUserId = ref("")
+const selectedScope = ref("0")
+// 用户分页数据
+const usersPaginationData = reactive({
+  currentPage: 1,
+  pageSize: 10,
+  total: 0,
+  pageSizes: [10, 20, 50, 100],
+  layout: "total, sizes, prev, pager, next, jumper"
+})
+
+// 查询系统所有用户的接口
+function getAllUsersApi() {
+  return request({
+    url: "/api/v1/auth/logto-users",
+    method: "get"
+  })
+}
+
+// 处理查看用户权限
+function handleViewUsers(row: KnowledgeBaseData) {
+  currentUsersKbId.value = row.id
+  usersDialogVisible.value = true
+  // 获取用户列表
+  getUsersList()
+}
+
+// 获取知识库关联的用户列表
+function getUsersList() {
+  if (!currentUsersKbId.value) return
+  
+  usersLoading.value = true
+  getUsersFromKnowledgeBaseApi({
+    kb_id: currentUsersKbId.value,
+    currentPage: usersPaginationData.currentPage,
+    size: usersPaginationData.pageSize
+  }).then((response: any) => {
+    const result = response as ApiResponse<ListResponse>
+    usersList.value = result.data.list
+    usersPaginationData.total = result.data.total
+  }).catch((error: any) => {
+    ElMessage.error(`获取用户列表失败: ${error?.message || "未知错误"}`)
+    usersList.value = []
+  }).finally(() => {
+    usersLoading.value = false
+  })
+}
+
+// 处理用户分页变化
+function handleUserCurrentChange(page: number) {
+  usersPaginationData.currentPage = page
+  getUsersList()
+}
+
+function handleUserSizeChange(size: number) {
+  usersPaginationData.pageSize = size
+  usersPaginationData.currentPage = 1
+  getUsersList()
+}
+
+// 处理移除用户
+function handleRemoveUser(row: any) {
+  ElMessageBox.confirm(
+    `确定要从该知识库中移除用户 "${row.user_name || row.username}" 吗？`,
+    "移除确认",
+    {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning"
+    }
+  ).then(() => {
+    removeUserLoading.value = true
+    deleteUsersFromKnowledgeBaseApi(row.id)
+      .then(() => {
+        ElMessage.success("用户已从知识库移除")
+        // 刷新用户列表
+        getUsersList()
+      })
+      .catch((error) => {
+        ElMessage.error(`移除用户失败: ${error?.message || "未知错误"}`)
+      })
+      .finally(() => {
+        removeUserLoading.value = false
+      })
+  }).catch(() => {
+    // 用户取消操作
+  })
+}
+
+// 处理添加用户
+function handleAddUser() {
+  addUserDialogVisible.value = true
+  selectedUserId.value = ""
+  selectedScope.value = "0"
+  // 获取所有用户列表
+  loadAllUsers()
+}
+
+// 加载所有用户
+function loadAllUsers() {
+  addUserLoading.value = true
+  getAllUsersApi()
+    .then((response: any) => {
+      const result = response as ApiResponse<ListResponse>
+      // 过滤掉已经在知识库中的用户
+      const existingUserIds = usersList.value.map(user => user.user_id)
+      userOptions.value = result.data.list.filter(user => !existingUserIds.includes(user.id))
+    })
+    .catch((error: any) => {
+      ElMessage.error(`获取用户列表失败: ${error?.message || "未知错误"}`)
+      userOptions.value = []
+    })
+    .finally(() => {
+      addUserLoading.value = false
+    })
+}
+
+// 确认添加用户
+function confirmAddUser() {
+  if (!selectedUserId.value) {
+    ElMessage.warning("请选择用户")
+    return
+  }
+  if (!selectedScope.value) {
+    ElMessage.warning("请选择权限")
+    return
+  }
+
+  const user = userOptions.value.find(item => item.id === selectedUserId.value)
+  if (!user) {
+    ElMessage.warning("请选择用户")
+    return
+  }
+  addUserLoading.value = true
+  addUsersToKnowledgeBaseApi({
+    kb_id: currentUsersKbId.value,
+    user_id: selectedUserId.value,
+    user_name: user.username,
+    user_phone: user.primaryPhone,
+    user_email: user.primaryEmail,
+    scope: selectedScope.value
+  })
+    .then(() => {
+      ElMessage.success("用户添加成功")
+      addUserDialogVisible.value = false
+      // 刷新用户列表
+      getUsersList()
+    })
+    .catch((error) => {
+      ElMessage.error(`添加用户失败: ${error?.message || "未知错误"}`)
+    })
+    .finally(() => {
+      addUserLoading.value = false
+    })
+}
 </script>
 
 <template>
@@ -980,7 +1151,7 @@ function shouldShowProgressCount(status: string) {
                 {{ scope.row.create_date }}
               </template>
             </el-table-column>
-            <el-table-column fixed="right" label="操作" width="180" align="center">
+            <el-table-column fixed="right" label="操作" width="250" align="center">
               <template #default="scope">
                 <el-button
                   type="primary"
@@ -991,6 +1162,16 @@ function shouldShowProgressCount(status: string) {
                   @click="handleView(scope.row)"
                 >
                   查看
+                </el-button>
+                <el-button
+                  type="primary"
+                  text
+                  bg
+                  size="small"
+                  :icon="UserFilled"
+                  @click="handleViewUsers(scope.row)"
+                >
+                  权限
                 </el-button>
                 <el-button
                   type="danger"
@@ -1190,7 +1371,7 @@ function shouldShowProgressCount(status: string) {
           </el-form-item>
           <el-form-item label="权限" prop="permission">
             <el-select v-model="knowledgeBaseForm.permission" placeholder="请选择权限">
-              <el-option label="个人" value="me" />
+              <!-- <el-option label="个人" value="me" /> -->
               <el-option label="团队" value="team" />
             </el-select>
           </el-form-item>
@@ -1309,6 +1490,108 @@ function shouldShowProgressCount(status: string) {
             <el-button @click="configModalVisible = false">取消</el-button>
             <el-button type="primary" @click="handleConfigSubmit" :loading="configSubmitLoading">
               测试连接
+            </el-button>
+          </span>
+        </template>
+      </el-dialog>
+
+      <!-- 用户权限管理对话框 -->
+      <el-dialog
+        v-model="usersDialogVisible"
+        :title="`权限管理 - ${currentKnowledgeBase?.name || ''}`"
+        width="60%"
+        append-to-body
+      >
+        <div class="users-table-header">
+          <el-button type="primary" :icon="Plus" @click="handleAddUser">
+            添加用户
+          </el-button>
+        </div>
+        <div class="users-table-wrapper" v-loading="usersLoading">
+          <el-table :data="usersList" style="width: 100%">
+            <el-table-column prop="user_name" label="用户名" min-width="120" />
+            <el-table-column prop="user_email" label="邮箱" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="scope" label="权限" min-width="180" show-overflow-tooltip >
+              <template #default="scope">
+                {{ scope.row.scope === '0' ? '只读' : '读写' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="关联时间" width="180" align="center">
+              <template #default="scope">
+                {{ scope.row.create_date || scope.row.create_time }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="center">
+              <template #default="scope">
+                <el-button
+                  type="danger"
+                  size="small"
+                  :icon="Delete"
+                  :loading="removeUserLoading"
+                  @click="handleRemoveUser(scope.row)"
+                >
+                  移除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          
+          <!-- 分页控件 -->
+          <div class="pagination-container">
+            <el-pagination
+              v-model:current-page="usersPaginationData.currentPage"
+              v-model:page-size="usersPaginationData.pageSize"
+              :page-sizes="usersPaginationData.pageSizes"
+              :layout="usersPaginationData.layout"
+              :total="usersPaginationData.total"
+              @size-change="handleUserSizeChange"
+              @current-change="handleUserCurrentChange"
+            />
+          </div>
+        </div>
+      </el-dialog>
+      
+      <!-- 添加用户对话框 -->
+      <el-dialog
+        v-model="addUserDialogVisible"
+        title="添加用户到知识库"
+        width="40%"
+        append-to-body
+        :close-on-click-modal="!addUserLoading"
+      >
+        <div v-loading="addUserLoading">
+          <el-form label-width="80px">
+            <el-form-item label="选择用户">
+              <el-select v-model="selectedUserId" placeholder="请选择用户" style="width: 100%">
+                <el-option
+                  v-for="item in userOptions"
+                  :key="item.id"
+                  :label="item.name || item.username"
+                  :value="item.id"
+                >
+                  <span>{{ item.name || item.username }}</span>
+                  <span style="color: #8492a6; font-size: 13px; margin-left: 8px">{{ item.email }}</span>
+                </el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item label="选择权限">
+              <el-select v-model="selectedScope" placeholder="请选择权限" style="width: 100%">
+                <el-option label="只读" value="0" />
+                <el-option label="可写" value="1" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+        </div>
+        
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="addUserDialogVisible = false">取消</el-button>
+            <el-button
+              type="primary"
+              :loading="addUserLoading"
+              @click="confirmAddUser"
+            >
+              确定
             </el-button>
           </span>
         </template>
@@ -1468,5 +1751,13 @@ function shouldShowProgressCount(status: string) {
   margin-right: 4px;
   vertical-align: middle;
   animation: rotating 2s linear infinite;
+}
+
+.users-table-header {
+  margin-bottom: 20px;
+}
+
+.users-table-wrapper {
+  margin-bottom: 20px;
 }
 </style>

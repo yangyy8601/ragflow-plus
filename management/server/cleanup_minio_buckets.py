@@ -2,31 +2,15 @@ import os
 from dotenv import load_dotenv
 import mysql.connector
 from minio import Minio
+from database import DB_CONFIG, MINIO_CONFIG, get_db_connection, get_minio_client
 
 # 加载环境变量
 load_dotenv("../../docker/.env")
 
-# 数据库连接配置
-DB_CONFIG = {
-    "host": "localhost",
-    "port": int(os.getenv("MYSQL_PORT", "5455")),
-    "user": "root",
-    "password": os.getenv("MYSQL_PASSWORD", "infini_rag_flow"),
-    "database": "rag_flow"
-}
-
-# MinIO连接配置
-MINIO_CONFIG = {
-    "endpoint": "localhost:" + os.getenv("MINIO_PORT", "9000"),
-    "access_key": os.getenv("MINIO_USER", "rag_flow"),
-    "secret_key": os.getenv("MINIO_PASSWORD", "infini_rag_flow"),
-    "secure": False
-}
-
 def get_used_buckets_from_db():
     """从数据库获取正在使用的存储桶(kb_id)列表"""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # 查询所有不重复的kb_id
@@ -46,12 +30,7 @@ def cleanup_unused_buckets():
     """清理未使用的MinIO存储桶"""
     try:
         # 获取MinIO客户端
-        minio_client = Minio(
-            endpoint=MINIO_CONFIG["endpoint"],
-            access_key=MINIO_CONFIG["access_key"],
-            secret_key=MINIO_CONFIG["secret_key"],
-            secure=MINIO_CONFIG["secure"]
-        )
+        minio_client = get_minio_client()
         
         # 获取数据库中的有效kb_id列表
         used_buckets = set(get_used_buckets_from_db())

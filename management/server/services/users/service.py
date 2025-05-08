@@ -2,6 +2,7 @@ import mysql.connector
 from datetime import datetime
 from utils import generate_uuid, encrypt_password
 from database import DB_CONFIG
+import requests
 
 def get_users_with_pagination(current_page, page_size, username='', email=''):
     """查询用户信息，支持分页和条件筛选"""
@@ -288,3 +289,67 @@ def update_user(user_id, user_data):
     except mysql.connector.Error as err:
         print(f"更新用户错误: {err}")
         return False
+
+def get_logto_users_list():
+    """获取Logto用户列表"""
+    try:
+        # 1. 获取 access_token
+        token_url = "https://www.aiboxcloud.com:3001/oidc/token"
+        token_headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        token_data = {
+            "grant_type": "client_credentials",
+            "client_id": "05vsvauzkutwgi2w540zm",
+            "client_secret": "ZJsT3qXFGaFVZ3Iz9UGrOOpvrBZvSheO",
+            "resource": "https://default.logto.app/api",
+            "scope": "all"
+        }
+        
+        token_response = requests.post(token_url, headers=token_headers, data=token_data)
+        
+        if token_response.status_code != 200:
+            return {"error": f"获取token失败: {token_response.text}"}, 0
+        
+        token_data = token_response.json()
+        access_token = token_data.get("access_token")
+        
+        if not access_token:
+            return {"error": "无法获取access_token"}, 0
+        
+        # 2. 使用获取到的token请求用户列表
+        users_url = "https://www.aiboxcloud.com:3001/api/users"
+        users_headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}"
+        }
+        
+        users_response = requests.get(users_url, headers=users_headers)
+        
+        if users_response.status_code != 200:
+            return {"error": f"获取用户列表失败: {users_response.text}"}, 0
+        
+        users = users_response.json()
+        
+        # 格式化用户数据以符合前端需要
+        formatted_users = []
+        for user in users:
+            formatted_users.append({
+                "id": user.get("id", ""),
+                "username": user.get("username", "") or user.get("name", ""),
+                "primaryEmail": user.get("primaryEmail", ""),
+                "primaryPhone": user.get("primaryPhone", ""),
+                "name": user.get("name", ""),
+                "avatar": user.get("avatar", ""),
+                "lastSignInAt": user.get("lastSignInAt", ""),
+                "createdAt": user.get("createdAt", ""),
+                "updatedAt": user.get("updatedAt", ""),
+                "isSuspended": user.get("isSuspended", False),
+                "hasPassword": user.get("hasPassword", False)
+            })
+        
+        return formatted_users, len(formatted_users)
+        
+    except Exception as e:
+        print(f"获取Logto用户列表错误: {str(e)}")
+        return {"error": f"获取用户列表失败: {str(e)}"}, 0

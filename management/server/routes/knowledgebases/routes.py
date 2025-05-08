@@ -3,8 +3,10 @@ from flask import Blueprint, request
 from services.knowledgebases.service import KnowledgebaseService
 from utils import success_response, error_response
 from .. import knowledgebase_bp
+from routes.auth.routes import authenticated
 
 @knowledgebase_bp.route('', methods=['GET'])
+# @authenticated(should_redirect=True)
 def get_knowledgebase_list():
     """获取知识库列表"""
     try:
@@ -87,6 +89,65 @@ def batch_delete_knowledgebase():
             kb_ids=data['ids']
         )
         return success_response(message=f'成功删除 {result} 个知识库')
+    except Exception as e:
+        return error_response(str(e))
+
+@knowledgebase_bp.route('/<string:kb_id>/users', methods=['POST'])
+def link_knowledgebase_to_user(kb_id):
+    """将知识库与用户关联"""
+    try:
+        data = request.json
+        if not data:
+            return error_response('请求数据不能为空', code=400)
+            
+        if not data.get('user_id'):
+            return error_response('用户ID不能为空', code=400)
+            
+        scope = data.get('scope', '0')  # 默认为只读权限
+        
+        result = KnowledgebaseService.link_knowledgebase_to_user(
+            knowledge_id=kb_id,
+            user_id=data['user_id'],
+            user_name=data['user_name'],
+            user_phone=data['user_phone'],
+            user_email=data['user_email'],
+            scope=scope
+        )
+        
+        return success_response(data=result, message='关联成功', code=0)
+    except Exception as e:
+        return error_response(str(e))
+
+@knowledgebase_bp.route('/<string:kb_id>/users', methods=['GET'])
+def get_knowledgebase_users(kb_id):
+    """获取知识库的所有关联用户"""
+    try:
+        # 获取分页参数
+        page = int(request.args.get('currentPage', 1))
+        size = int(request.args.get('size', 10))
+        
+        result = KnowledgebaseService.get_knowledgebase_users(
+            kb_id=kb_id,
+            page=page,
+            size=size
+        )
+        
+        return success_response(result)
+    except ValueError as e:
+        return error_response("参数类型错误", code=400)
+    except Exception as e:
+        return error_response(str(e))
+
+@knowledgebase_bp.route('/users/<string:role_id>', methods=['DELETE'])
+def unlink_knowledgebase_from_user(role_id):
+    """删除知识库与用户的关联"""
+    try:
+        result = KnowledgebaseService.unlink_knowledgebase_from_user(
+            role_id=role_id
+        )
+        if not result:
+            return error_response('关联记录不存在', code=404)
+        return success_response(message='删除关联成功')
     except Exception as e:
         return error_response(str(e))
 

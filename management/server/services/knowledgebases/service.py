@@ -1228,3 +1228,202 @@ class KnowledgebaseService:
                 cursor.close()
             if conn and conn.is_connected():
                 conn.close()
+
+    @classmethod
+    def link_knowledgebase_to_user(cls, knowledge_id, user_id, user_name, user_phone, user_email, scope):
+        """将知识库与用户关联
+        
+        Args:
+            knowledge_id: 知识库ID
+            user_id: 用户ID
+            user_name: 用户名
+            user_phone: 用户电话
+            user_email: 用户邮箱
+            scope: 权限范围，0: 只读, 1: 可写
+            
+        Returns:
+            dict: 创建的关联记录
+        """
+        try:
+            # 检查知识库是否存在
+            kb = cls.get_knowledgebase_detail(knowledge_id)
+            if not kb:
+                raise Exception("知识库不存在")
+                
+            conn = cls._get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # # 检查用户是否存在
+            # user_check_query = "SELECT id FROM user WHERE id = %s"
+            # cursor.execute(user_check_query, (user_id,))
+            # user = cursor.fetchone()
+            # if not user:
+            #     cursor.close()
+            #     conn.close()
+            #     raise Exception("用户不存在")
+                
+            # 检查是否已存在相同的关联
+            check_query = """
+                SELECT id FROM knowledgebase_role 
+                WHERE knowledge_id = %s AND user_id = %s
+            """
+            cursor.execute(check_query, (knowledge_id, user_id))
+            existing = cursor.fetchone()
+            if existing:
+                cursor.close()
+                conn.close()
+                raise Exception("该用户已与此知识库关联")
+            
+            # 验证权限范围
+            if scope not in ['0', '1']:
+                cursor.close()
+                conn.close()
+                raise Exception("权限范围不正确，请使用 '0'(只读) 或 '1'(可写)")
+            
+            # 创建关联记录
+            current_time = datetime.now()
+            create_date = current_time.strftime('%Y-%m-%d %H:%M:%S')
+            create_time = int(current_time.timestamp() * 1000)  # 毫秒级时间戳
+            
+            # 使用 generate_uuid 生成唯一ID
+            role_id = generate_uuid()
+            
+            insert_query = """
+                INSERT INTO knowledgebase_role (
+                    id, knowledge_id, user_id, user_name, user_phone, user_email, scope, 
+                    create_time, create_date, update_time, update_date
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, 
+                    %s, %s, %s, %s
+                )
+            """
+            cursor.execute(insert_query, (
+                role_id, knowledge_id, user_id, user_name, user_phone, user_email, scope,
+                create_time, create_date, create_time, create_date
+            ))
+            conn.commit()
+            
+            # 获取创建的记录
+            get_record_query = """
+                SELECT * FROM knowledgebase_role
+                WHERE id = %s
+            """
+            cursor.execute(get_record_query, (role_id,))
+            result = cursor.fetchone()
+            
+            cursor.close()
+            conn.close()
+            
+            # 处理结果中的日期时间
+            if result:
+                if 'create_date' in result and isinstance(result['create_date'], datetime):
+                    result['create_date'] = result['create_date'].strftime('%Y-%m-%d %H:%M:%S')
+                if 'update_date' in result and isinstance(result['update_date'], datetime):
+                    result['update_date'] = result['update_date'].strftime('%Y-%m-%d %H:%M:%S')
+            
+            return result
+        except Exception as e:
+            print(f"关联知识库与用户失败: {str(e)}")
+            raise Exception(f"关联知识库与用户失败: {str(e)}")
+
+    @classmethod
+    def get_knowledgebase_users(cls, kb_id, page=1, size=10):
+        """获取知识库的所有关联用户
+        
+        Args:
+            kb_id: 知识库ID
+            page: 页码
+            size: 每页数量
+            
+        Returns:
+            dict: 包含用户列表和总数的字典
+        """
+        try:
+            # 检查知识库是否存在
+            kb = cls.get_knowledgebase_detail(kb_id)
+            if not kb:
+                raise Exception("知识库不存在")
+                
+            conn = cls._get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # 分页查询
+            offset = (page - 1) * size
+            query = """
+                SELECT kr.id, kr.knowledge_id, kr.user_id, kr.user_name, kr.user_phone, kr.user_email, kr.scope, 
+                       kr.create_date, kr.update_date
+                FROM knowledgebase_role kr
+                WHERE kr.knowledge_id = %s
+                LIMIT %s OFFSET %s
+            """
+            cursor.execute(query, (kb_id, size, offset))
+            results = cursor.fetchall()
+            
+            # 处理结果
+            for result in results:
+                # 处理时间格式
+                if result.get('create_date'):
+                    if isinstance(result['create_date'], datetime):
+                        result['create_date'] = result['create_date'].strftime('%Y-%m-%d %H:%M:%S')
+                if result.get('update_date'):
+                    if isinstance(result['update_date'], datetime):
+                        result['update_date'] = result['update_date'].strftime('%Y-%m-%d %H:%M:%S')
+                        
+                # 将scope转换为易读的权限类型
+                result['permission_type'] = '只读' if result['scope'] == '0' else '可写'
+            
+            # 获取总数
+            count_query = """
+                SELECT COUNT(*) as total 
+                FROM knowledgebase_role 
+                WHERE knowledge_id = %s
+            """
+            cursor.execute(count_query, (kb_id,))
+            total = cursor.fetchone()['total']
+            
+            cursor.close()
+            conn.close()
+            
+            return {
+                'list': results,
+                'total': total
+            }
+        except Exception as e:
+            print(f"获取知识库关联用户失败: {str(e)}")
+            raise Exception(f"获取知识库关联用户失败: {str(e)}")
+
+    @classmethod
+    def unlink_knowledgebase_from_user(cls, role_id):
+        """删除知识库与用户的关联
+        
+        Args:
+            role_id: 关联记录ID
+            
+        Returns:
+            bool: 是否删除成功
+        """
+        try:
+            conn = cls._get_db_connection()
+            cursor = conn.cursor()
+            
+            # 检查关联记录是否存在
+            check_query = "SELECT id FROM knowledgebase_role WHERE id = %s"
+            cursor.execute(check_query, (role_id,))
+            role = cursor.fetchone()
+            if not role:
+                cursor.close()
+                conn.close()
+                raise Exception("关联记录不存在")
+            
+            # 删除关联记录
+            delete_query = "DELETE FROM knowledgebase_role WHERE id = %s"
+            cursor.execute(delete_query, (role_id,))
+            conn.commit()
+            
+            cursor.close()
+            conn.close()
+            
+            return True
+        except Exception as e:
+            print(f"删除知识库与用户的关联失败: {str(e)}")
+            raise Exception(f"删除知识库与用户的关联失败: {str(e)}")

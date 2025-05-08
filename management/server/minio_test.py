@@ -4,32 +4,16 @@ from tabulate import tabulate
 from dotenv import load_dotenv
 from minio import Minio
 from io import BytesIO
+from database import DB_CONFIG, MINIO_CONFIG, get_db_connection, get_minio_client
 
 # 加载环境变量
 load_dotenv("../../docker/.env")
-
-# 数据库连接配置
-DB_CONFIG = {
-    "host": "localhost",  # 如果在Docker外运行，使用localhost
-    "port": int(os.getenv("MYSQL_PORT", "5455")),
-    "user": "root",
-    "password": os.getenv("MYSQL_PASSWORD", "infini_rag_flow"),
-    "database": "rag_flow"
-}
-
-# MinIO连接配置
-MINIO_CONFIG = {
-    "endpoint": "localhost:" + os.getenv("MINIO_PORT", "9000"),
-    "access_key": os.getenv("MINIO_USER", "rag_flow"),
-    "secret_key": os.getenv("MINIO_PASSWORD", "infini_rag_flow"),
-    "secure": False
-}
 
 def get_all_documents():
     """获取所有文档信息及其在MinIO中的存储位置"""
     try:
         # 连接到MySQL数据库
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
         # 首先获取document表的列信息
@@ -127,12 +111,7 @@ def download_document_from_minio(bucket, object_name, output_path):
     """从MinIO下载文档"""
     try:
         # 创建MinIO客户端
-        minio_client = Minio(
-            endpoint=MINIO_CONFIG["endpoint"],
-            access_key=MINIO_CONFIG["access_key"],
-            secret_key=MINIO_CONFIG["secret_key"],
-            secure=MINIO_CONFIG["secure"]
-        )
+        minio_client = get_minio_client()
         
         # 检查bucket是否存在
         if not minio_client.bucket_exists(bucket):

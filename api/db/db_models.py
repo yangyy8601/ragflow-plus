@@ -715,6 +715,18 @@ class Knowledgebase(DataBaseModel):
 
     class Meta:
         db_table = "knowledgebase"
+        
+class KnowledgebaseRole(DataBaseModel):
+    id = CharField(max_length=32, primary_key=True)
+    knowledge_id = CharField(max_length=32, null=False, index=True)
+    user_id = CharField(max_length=32, null=False, index=True)
+    user_name = CharField(max_length=32, null=False, index=True)
+    user_phone = CharField(max_length=32, null=False, index=True)
+    user_email = CharField(max_length=128, null=False, index=True)
+    scope = CharField(max_length=1, null=False, index=True)
+    
+    class Meta:
+        db_table = "knowledgebase_role"
 
 
 class Document(DataBaseModel):

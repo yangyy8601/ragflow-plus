@@ -20,10 +20,23 @@ def is_running_in_docker():
     except:
         return docker_env
 
+# 远程服务器地址，本地开发时修改这里
+REMOTE_SERVER = "192.168.8.127"
+USE_REMOTE = True  # 设置为True使用远程服务器，False使用本地
+
 # 根据运行环境选择合适的主机地址
-DB_HOST = 'host.docker.internal' if is_running_in_docker() else 'localhost'
-MINIO_HOST = 'host.docker.internal' if is_running_in_docker() else 'localhost'
-ES_HOST = 'es01' if is_running_in_docker() else 'localhost'
+if is_running_in_docker():
+    DB_HOST = 'host.docker.internal' 
+    MINIO_HOST = 'host.docker.internal'
+    ES_HOST = 'es01'
+elif USE_REMOTE:
+    DB_HOST = REMOTE_SERVER
+    MINIO_HOST = REMOTE_SERVER
+    ES_HOST = REMOTE_SERVER
+else:
+    DB_HOST = 'localhost'
+    MINIO_HOST = 'localhost'
+    ES_HOST = 'localhost'
 
 # 数据库连接配置
 DB_CONFIG = {

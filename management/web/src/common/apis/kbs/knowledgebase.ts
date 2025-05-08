@@ -98,3 +98,41 @@ export function setSystemEmbeddingConfigApi(data: {
     data
   })
 }
+
+// 获取知识库的所有关联用户
+export function getUsersFromKnowledgeBaseApi(params: {
+  kb_id: string
+  currentPage: number
+  size: number
+}) {
+  return request({
+    url: `/api/v1/knowledgebases/${params.kb_id}/users`,
+    method: "get",
+    params
+  })
+}
+
+// 添加文档到知识库
+export function addUsersToKnowledgeBaseApi(data: {
+  kb_id: string
+  user_id: string
+  user_name: string
+  user_phone: string
+  user_email: string
+  scope: string
+}) {
+  return request({
+    url: `/api/v1/knowledgebases/${data.kb_id}/users`,
+    method: "post",
+    data
+  })
+}
+
+// 删除知识库与用户的关联
+export function deleteUsersFromKnowledgeBaseApi(id: string) {
+  return request({
+    url: `/api/v1/knowledgebases/users/${id}`,
+    method: "delete"
+  })
+}
+
