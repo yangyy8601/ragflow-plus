@@ -18,7 +18,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv('MANAGEMENT_JWT_SECRET', 'your-secret-key')
 # 启用CORS，允许前端访问
 CORS(app, resources={
-    r"/api/*": {
+    r"*": {
         "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
@@ -73,26 +73,6 @@ def login():
     
     return {"code": 0, "data": {"token": token}, "message": "登录成功"}
 
-
-# 清理步骤
-def clear_all_caches():
-    # 1. 清理文件缓存
-    cache_dir = "tmp/cache"
-    if os.path.exists(cache_dir):
-        shutil.rmtree(cache_dir)
-    os.makedirs(cache_dir, exist_ok=True)
-
-    # 2. 清理内存缓存
-    @lru_cache(maxsize=128)
-    def dummy():
-        pass
-    dummy.cache_clear()
-
-    # 3. 其他自定义缓存清理...
-    print("✅ All caches cleared")
-
-# 在服务启动前执行
-clear_all_caches()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
