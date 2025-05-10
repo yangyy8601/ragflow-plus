@@ -91,7 +91,7 @@ async def callback():
         return redirect('/')
     except Exception as e:
         logger.error(f"回调处理错误: {str(e)}")
-        return jsonify({"code": 1, "message": f"回调处理错误: {str(e)}"}), 500
+        return jsonify({"code": 1, "message": "未认证"}), 401
 
 @auth_bp.route('/sign-in', methods=['GET'])
 async def sign_in():
