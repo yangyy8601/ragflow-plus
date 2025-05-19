@@ -29,10 +29,10 @@ CMD ["nginx", "-g", "daemon off;"]
 # 后端构建阶段
 FROM python:3.10.16 AS backend
 # 安装 LibreOffice 及字体支持
-RUN apt-get update && \
-    apt-get install -y libreoffice fonts-noto-cjk && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN yum update -y && \
+    yum install -y libreoffice-* dejavu-sans-fonts dejavu-serif-fonts && \
+    yum clean all && \
+    rm -rf /var/cache/yum/*
 WORKDIR /app
 COPY server/requirements.txt /app/
 # 安装依赖
@@ -42,8 +42,8 @@ COPY server /app
 
 # 创建 huggingface 缓存目录并复制模型
 RUN mkdir -p /root/.cache/huggingface/hub/
-COPY models--opendatalab--PDF-Extract-Kit-1.0 /root/.cache/huggingface/hub/models--opendatalab--PDF-Extract-Kit-1.0
-COPY models--hantian--layoutreader /root/.cache/huggingface/hub/models--hantian--layoutreader
+# COPY models--opendatalab--PDF-Extract-Kit-1.0 /root/.cache/huggingface/hub/models--opendatalab--PDF-Extract-Kit-1.0
+# COPY models--hantian--layoutreader /root/.cache/huggingface/hub/models--hantian--layoutreader
 # COPY magic-pdf.json /root/magic-pdf.json
 
 # 暴露后端端口

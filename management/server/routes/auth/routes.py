@@ -81,12 +81,12 @@ async def callback():
     try:
         logto_client = get_logto_client()
         url = request.url
-        logger.info(f"处理Logto认证回调={request.url}")        
+        # logger.info(f"处理Logto认证回调={request.url}")        
         await logto_client.handleSignInCallback(str(url))
         # 调试信息
-        logger.info("Callback processing complete.")
-        logger.info("Is authenticated after callback: %s", logto_client.isAuthenticated())
-        logger.info("ID Token after callback: %s", logto_client.getIdToken())
+        # logger.info("Callback processing complete.")
+        # logger.info("Is authenticated after callback: %s", logto_client.isAuthenticated())
+        # logger.info("ID Token after callback: %s", logto_client.getIdToken())
 
         return redirect('/')
     except Exception as e:
@@ -99,10 +99,10 @@ async def sign_in():
     try:
         logger.info(f"登录请求")
         logto_client = get_logto_client()
-        logger.info(logto_client)
+        # logger.info(logto_client)
 
         base_url = os.environ.get("LOCAL_HOST_URL", f"{request.scheme}://{request.host}")
-        logger.info(f"访问基础地址: {base_url}")
+        # logger.info(f"访问基础地址: {base_url}")
         
         # 获取登录URL并重定向
         redirect_uri = f"{base_url}/api/v1/auth/callback"

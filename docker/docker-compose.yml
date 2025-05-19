@@ -10,8 +10,8 @@ services:
     container_name: ragflowplus-server
     ports:
       - ${SVR_HTTP_PORT}:9380
-      - 18080:80
-      - 1443:443
+      - 8080:80
+      - 443:443
     volumes:
       - ./ragflow-logs:/ragflow/logs
       - ./nginx/ragflow.conf:/etc/nginx/conf.d/ragflow.conf
@@ -37,7 +37,7 @@ services:
       dockerfile: Dockerfile
       target: frontend
     ports:
-      - "9888:80"
+      - "8888:80"
     depends_on:
       - management-backend
     environment:
@@ -103,7 +103,7 @@ services:
   #   networks:
   #     - ragflow
 
-  # vllm 语言模型
+  # # vllm 语言模型
   # vllm-deepseek:
   #   container_name: vllm-deepseek
   #   image: vllm/vllm-openai:latest
@@ -119,11 +119,11 @@ services:
   #   ]
   #   ports:
   #     - "8001:8000"
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             capabilities: [gpu]
+  #   # deploy:
+  #   #   resources:
+  #   #     reservations:
+  #   #       devices:
+  #   #         - driver: nvidia
+  #   #           capabilities: [gpu]
   #   networks:
   #     - ragflow
